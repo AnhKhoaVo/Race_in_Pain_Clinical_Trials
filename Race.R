@@ -46,6 +46,8 @@ library(epitools)
 library(tidyverse)
 library(meta)
 library(caret)
+library(gtsummary)
+
 
 #Select only "pain" conditions
 pain_conditions <- aact_conditions %>%
@@ -1211,80 +1213,53 @@ write.csv(race_pain_NorthAmerica_4, file="race_pain_NorthAmerica_4.csv", na=" ")
 descriptive <-table1(~study_type+funding+phase+start_year+female_percent+White_percent+Black_percent+POC_percent+Black_POC_percent, data=opioid_pain_4)
 write.csv(descriptive, file="descrip.csv")
 
+
+## OR of Black in Industry funding vs Non-industry
 Input =("
 Race	     Industry	  Non-Industry
-Non-Black	  21294	     29859
-Black	      3151	     7545  
+Non-Black	  27103	     40264
+Black	      4146	     10955  
 
 ")
 
-Input =("
-Race	     Industry	  Non-Industry
-Non-Black	  23915	     35073
-Black	      3448	     8651
 
-")
-
+## OR of Black in time
 Input =("
 Race 	        Before-2010	After-2010
-Non-Black	    24793	      26360
-Black	        4396	      6300
+Non-Black	    33219	      34148
+Black	        7136	      7965
 
 ")
 
-
+## OR of Black in Phases
 Input =("
 Race           Early-phase   Late-phase 
-Non-Black       5491          34178    
-Black           951           6601         
+Non-Black       6595            40006  
+Black           1205            7622         
   ")
 
-Input =("
-Race           Early-phase   Late-phase 
-Non-Black       6131           36434    
-Black           1046           6841         
-  ")
 
-Input =("
-Funding	     Before-2010 After-2010
-Industry	     1360	      2088
-Non-Industry	 3302	      5349
-
-")
-
-Input =("
-Funding	     Early-phase Late-phase
-Industry	     542	      2791
-Non-Industry	 504	      4050
-
-")
-
-Input =("
-Phase	     Before-2010 After-2010
-Late       3893         2948
-Early	     311	        735
-
-")
-
-#Race reporting in time 
+#Race reporting in time  in All_pain_US
 Input =("
 Race              Before-2010  After-2010
-Non-reported       294          549
-reported	         100          258
+Non-reported       342          376
+reported	         149          333
 
 ")
 
+#### Race reporting in  Industry  in All_pain_US
 Input =("
 Race              Industry  Non-Industry
-Non-reported       230         613
-reported	         79          279
+Non-reported       180         538
+reported	         129         353
 
 ")
 
+### Race reporting in Phase in All_pain_US
 Input =("
 Race              Early       Late
-Non-reported       173        323
-reported	         65         140
+Non-reported       147        272
+reported	         91         191
 
 ")
 
@@ -1295,6 +1270,22 @@ Non-Black       43435         7718
 Black	          8825          1871
 
 ")
+
+## Race reporting in Total N in All_pain_US_2
+Input =("
+Race            small           large
+Non-reported     655            63
+reported	       401            81
+
+")
+
+## Black participation across different N
+Input =("
+Race           Small            Large 
+Non-Black       27059           40308  
+Black           5764            9337        
+  ")
+
 
 Matrix.1 = as.matrix(read.table(textConnection(Input),
                                 header=TRUE,
@@ -1480,13 +1471,25 @@ ggarrange(ggarrange(funding_only_plot, time_only_plot, ncol=2, labels = c("A", "
 
 ## Meta analysis 
 
-Meta_all <- metaprop(Black_N, N_total, studlab=nct_id, sm="PLOGIT", data=race_pain_NorthAmerica_5, method="GLMM", method.tau="ML")
+Meta_all <- metaprop(Black_N, N_total, studlab=nct_id, sm="PLOGIT", data=race_pain_NorthAmerica_19, method="GLMM", method.tau="ML")
 summary(Meta_all)
 
-forest(Meta_all, layout="RevMan5", xlab="Proportion", 
+
+pdf(file = "meta_forest.pdf", width = 10, height = 25)
+
+forest.meta(Meta_all, layout="RevMan5", xlab="Proportion", psize=0.1, 
        comb.r=T, comb.f=F, xlim = c(0,1), fontsize=10, digits=3, 
        label.right = "More Black Participants", col.label.right = "green", 
        label.left = "Fewer Black Participants", col.label.left = "red")
+
+dev.off()
+
+Meta_all_reg <-metareg(Meta_all, ~bi_year+funding+phase_binary)
+
+drapery(Meta_all, 
+        labels = "studlab",
+        type = "pval", 
+        legend = FALSE)
 
 Meta_acute <- metaprop(Black_N, N_total, studlab=nct_id, sm="PLOGIT", data=subset(race_pain_NorthAmerica_4, pain_type=="acute"), method="GLMM", method.tau="ML")
 Meta_chronic <- metaprop(Black_N, N_total, studlab=nct_id, sm="PLOGIT", data=subset(race_pain_NorthAmerica_4, pain_type=="chronic"), method="GLMM", method.tau="ML")
@@ -1547,6 +1550,11 @@ Unreported_results<- left_join(Unreported_results, All_pain_US, by="nct_id")
 #Update the Reported race proportions
 All_pain_US$reported_race_3 <- as.factor(ifelse(All_pain_US$nct_id %in% race_pain_US$nct_id, 1, 
                                                 ifelse(All_pain_US$nct_id %in% Unreported_results$nct_id, 1, 0)))
+
+
+## Binary start year
+All_pain_US$bi_year <- as.factor(ifelse(All_pain_US$start_year<2011, "Before", "After"))
+
 
 ### Intersecting names
 Unreported_results <- select(Unreported_results, intersect(names(Unreported_results), names(race_pain_NorthAmerica_4)))
@@ -1663,6 +1671,7 @@ ggplot(data=subset(race_pain_NorthAmerica_5, !is.na(Location_Black_Percent)), ae
 
 ##Determine private vs public facilities from Homeland Infrastructure Data (HIFLD)
 ## Hopsitals + Colleges and Universities Datasets
+## https://hifld-geoplatform.opendata.arcgis.com/datasets/geoplatform::colleges-and-universities/about
 
 Hospitals <- read.csv("Hospitals.csv")
 Hospitals_2 <- select(Hospitals, "NAME", "OWNER")
@@ -1723,6 +1732,9 @@ multiple_locations_updated$Nature <- ifelse(multiple_locations_updated$Nature ==
 Pain_facilities_nature <- bind_rows(one_location_updated, multiple_locations_updated)
 
 Pain_facilities_nature <- select(Pain_facilities_nature, "nct_id", "Nature")
+
+Pain_facilities_nature$Nature_2 <- as.factor(ifelse(Pain_facilities_nature$Nature == "GOVERNMENT", "Government", "Non-Government"))
+
 
 race_pain_NorthAmerica_6 <- left_join(race_pain_NorthAmerica_5, Pain_facilities_nature, by="nct_id")
 
@@ -1933,4 +1945,549 @@ write_xlsx(pain_investigators, "pain_investigators.xlsx")
 
 ## Import back for race of PI
 PI_race <- read_excel("pain_investigators.xlsx")
+PI_race_2 <- aggregate(.~nct_id, PI_race, paste, collapse="")
 
+PI_BIPOC <- c("POC", "B")
+PI_race_2$diverse_index_1 <- str_detect(PI_race_2$perceived_race, "POC")
+PI_race_2$diverse_index_2 <- str_detect(PI_race_2$perceived_race, "B")                    
+PI_race_2$diverse_index <- as.factor(ifelse(PI_race_2$diverse_index_1=="TRUE"|PI_race_2$diverse_index_2=="TRUE", 1, 0))
+
+PI_race_3 <- select(PI_race_2, "nct_id", "diverse_index")
+
+race_pain_NorthAmerica_16$bi_year <- as.factor(ifelse(race_pain_NorthAmerica_16$start_year<2011, "Before", "After"))
+
+race_pain_NorthAmerica_17 <- left_join(race_pain_NorthAmerica_16, PI_race_3, by="nct_id")
+
+## Religious
+## 2021, World Population Review 
+## https://worldpopulationreview.com/state-rankings/most-religious-states
+
+Religious_States <- read.csv("Religious.csv")
+Pain_Religious <- merge(Pain_States, Religious_States, by.x="state", by.y="ï..State")
+Pain_Religious <- aggregate(.~nct_id, Pain_Religious, paste, collapse=",")
+Pain_Religious$Mean_Religious <- sapply(strsplit(Pain_Religious$religiousAdults, ','), function(x) mean(as.numeric(x)))
+Religious <- select(Pain_Religious, "nct_id", "Mean_Religious")
+
+race_pain_NorthAmerica_18 <- left_join(race_pain_NorthAmerica_17, Religious, by="nct_id")
+
+## Political Affiliations 
+## 2021, State political parties, KFF
+### https://www.kff.org/other/state-indicator/state-political-parties/?currentTimeframe=0&sortModel=%7B%22colId%22:%22State%20Senate%20Majority%20Political%20Affiliation%22,%22sort%22:%22asc%22%7D
+
+Politics_States <- read_excel("Politics.xlsx")
+Pain_Politics <- merge(Pain_States, Politics_States, by.x="state", by.y="Location")
+Pain_Politics <- aggregate(.~nct_id, Pain_Politics, paste, collapse=",")
+Politics <- select(Pain_Politics, "nct_id", "State_Senate")
+
+Politics$State_politics <-sapply(strsplit(Politics$State_Senate, ","), function(x) paste(rle(x)$values, collapse=","))
+Politics$State_politics <- as.factor(ifelse(Politics$State_politics=="Democrat", "D", 
+                                            ifelse(Politics$State_politics=="Republican", "R", "Mixed")))
+Politics <- select(Politics, "nct_id", "State_politics")
+
+race_pain_NorthAmerica_19 <- left_join(race_pain_NorthAmerica_18, Politics, by="nct_id")
+
+### ALL pain US COUNT of participants 
+reported_count <- select(race_pain_US_2, "nct_id", "N_total")
+colnames(Unreported_count_4)[colnames(Unreported_count_4) == "count"] <- "N_total"
+
+All_pain_US_count <- bind_rows(reported_count, Unreported_count_4)
+All_pain_US_2 <- left_join(All_pain_US, All_pain_US_count, by="nct_id")
+All_pain_US_2$N_binary <- as.factor(ifelse(All_pain_US_2$N_total>300, "large", "small"))
+
+All_pain_US_2 %>% group_by(N_binary, reported_race_3) %>% summarise(N=n())
+
+race_pain_NorthAmerica_19$N_binary <- as.factor(ifelse(race_pain_NorthAmerica_19$N_total>300, "large", "small"))
+
+
+## What IF we should use variables that are stratified by STATE only, and not race?
+## Education from National Center of Education Statistics 
+## Rates of high school completion and bachelor's degree attainment among persons age 25 and over, by race/ethnicity and state: 2018
+## https://nces.ed.gov/programs/digest/d19/tables/dt19_104.85.asp?current=yes
+
+Education_total_States <- read_excel("Education_total.xlsx")
+Pain_total_Education <- merge(Pain_States, Education_total_States, by.x="state", by.y="State")
+Pain_total_Education <-aggregate(.~nct_id, Pain_total_Education, paste, collapse=",")
+Pain_total_Education$Mean_total_bachelor <- sapply(strsplit(Pain_total_Education$Total_percent_bachelor, ','), function(x) mean(as.numeric(x)))
+
+Education_2 <- select(Pain_total_Education, "nct_id", "Mean_total_bachelor")
+
+race_pain_NorthAmerica_20 <- left_join(race_pain_NorthAmerica_19, Education_2, by="nct_id")
+
+
+### ADDED SIGNIFICANT VARIABLES INTO UNREPORTED FILES
+Unreported_US_4 <-Reduce(function(x, y) merge(x, y, by="nct_id", all.x=TRUE), list(Unreported_US_3, Internet, Pain_facilities_nature))
+
+## UNREPORTED RACE AND TRIALS DID NOT REPORT BLACK 
+Anti_US <- anti_join(All_pain_US_2, race_pain_NorthAmerica_20,by=c("nct_id"))
+
+
+## ADD THEM BACK UP
+Unreported_US_5 <-Reduce(function(x, y) merge(x, y, by="nct_id", all.x=TRUE), list(Anti_US, Internet, Pain_facilities_nature, Location_Black, Pain_Police))
+
+## Dataset of clinical trials reported race but did NOT report Black 
+No_Black <- anti_join(race_pain_US_2, race_pain_NorthAmerica_20,by=c("nct_id"))
+No_Black <-Reduce(function(x, y) merge(x, y, by="nct_id", all.x=TRUE), list(No_Black, Internet, Pain_facilities_nature))
+
+## Pain types 
+race_pain_NorthAmerica_20$acute_2 <- as.factor(ifelse(race_pain_NorthAmerica_20$pain_type == "acute", "acute", "non-acute"))
+race_pain_NorthAmerica_20$chronic_2 <- as.factor(ifelse(race_pain_NorthAmerica_20$pain_type == "chronic", "chronic", "non-chronic"))
+race_pain_NorthAmerica_20$cancer_2 <- as.factor(ifelse(race_pain_NorthAmerica_20$pain_type == "cancer", "cancer", "non-cancer"))
+
+###ADD ALL SES VARIABLES TO ALL_PAIN_US_2
+
+All_pain_US_3 <- Reduce(function(x, y) merge(x, y, by="nct_id", all.x=TRUE), list(All_pain_US_2, Location_Black, Pain_facilities_nature, Trips, 
+                                                                                  Education, Internet, Insurance, Income, Pain_Police, Employment, 
+                                                                                  Unemployment, Housing, Homeownership, Poverty, PI_race_3, Religious, Politics ))
+### Add quartile of continous variales: (look into summary then make it factor)
+summary(All_pain_US_3$N_total)
+All_pain_US_3$N_total_quartile <- as.factor(ifelse(All_pain_US_3$N_total < 33, "0",
+                                                   ifelse(All_pain_US_3$N_total<76&All_pain_US_3$N_total>32, "1", 
+                                                          ifelse(All_pain_US_3$N_total<162&All_pain_US_3>75, "2", "3"))))
+
+
+summary(race_pain_NorthAmerica_20$N_total)
+race_pain_NorthAmerica_20$N_total_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$N_total < 36, "0",
+                                                   ifelse(race_pain_NorthAmerica_20$N_total<86&race_pain_NorthAmerica_20$N_total>35, "1", 
+                                                          ifelse(race_pain_NorthAmerica_20$N_total<219&race_pain_NorthAmerica_20>85, "2", "3"))))
+
+
+All_pain_US_3$start_year_quartile <- as.factor(ifelse(All_pain_US_3$start_year < 2005, "0",
+                                                   ifelse(All_pain_US_3$start_year<2010&All_pain_US_3$start_year>2004, "1", 
+                                                          ifelse(All_pain_US_3$start_year<2015&All_pain_US_3$start_year>2009, "2", "3"))))
+
+race_pain_NorthAmerica_20$start_year_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$start_year < 2005, "0",
+                                                      ifelse(race_pain_NorthAmerica_20$start_year<2010&race_pain_NorthAmerica_20$start_year>2004, "1", 
+                                                             ifelse(race_pain_NorthAmerica_20$start_year<2015&race_pain_NorthAmerica_20$start_year>2009, "2", "3"))))
+
+summary(All_pain_US_3$Location_Black_Percent)
+All_pain_US_3$Location_Black_Percent_quartile <- as.factor(ifelse(All_pain_US_3$Location_Black_Percent < 0.0642, "0",
+                                                      ifelse(All_pain_US_3$Location_Black_Percent<0.1214&All_pain_US_3$Location_Black_Percent>0.0641, "1", 
+                                                             ifelse(All_pain_US_3$Location_Black_Percent<0.1567&All_pain_US_3$Location_Black_Percent>0.1213, "2", "3"))))
+
+summary(race_pain_NorthAmerica_20$Location_Black_Percent)
+race_pain_NorthAmerica_20$Location_Black_Percent_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Location_Black_Percent < 0.08187, "0",
+                                                                  ifelse(race_pain_NorthAmerica_20$Location_Black_Percent<0.12251&race_pain_NorthAmerica_20$Location_Black_Percent>0.08186, "1", 
+                                                                         ifelse(race_pain_NorthAmerica_20$Location_Black_Percent<0.15661&race_pain_NorthAmerica_20$Location_Black_Percent>0.12250, "2", "3"))))
+
+summary(All_pain_US_3$Mean_Trips)
+All_pain_US_3$Mean_Trips_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Trips < 10.032, "0",
+                                                                  ifelse(All_pain_US_3$Mean_Trips<21.059&All_pain_US_3$Mean_Trips>10.031, "1", 
+                                                                         ifelse(All_pain_US_3$Mean_Trips<33.378&All_pain_US_3$Mean_Trips>21.058, "2", "3"))))
+
+summary(race_pain_NorthAmerica_20$Mean_Trips)
+race_pain_NorthAmerica_20$Mean_Trips_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Trips < 9.887, "0",
+                                                      ifelse(race_pain_NorthAmerica_20$Mean_Trips<19.827&race_pain_NorthAmerica_20$Mean_Trips>9.886, "1", 
+                                                             ifelse(race_pain_NorthAmerica_20$Mean_Trips<32.264&race_pain_NorthAmerica_20$Mean_Trips>19.826, "2", "3"))))
+
+summary(All_pain_US_3$Mean_Vehicles)
+All_pain_US_3$Mean_Vehicles_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Vehicles < 3311, "0",
+                                                      ifelse(All_pain_US_3$Mean_Vehicles<6982&All_pain_US_3$Mean_Vehicles>3310, "1", 
+                                                             ifelse(All_pain_US_3$Mean_Vehicles<10461&All_pain_US_3$Mean_Vehicles>6981, "2", "3"))))
+
+summary(race_pain_NorthAmerica_20$Mean_Vehicles)
+race_pain_NorthAmerica_20$Mean_Vehicles_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Vehicles < 3311, "0",
+                                                         ifelse(race_pain_NorthAmerica_20$Mean_Vehicles<6491&race_pain_NorthAmerica_20$Mean_Vehicles>3310, "1", 
+                                                                ifelse(race_pain_NorthAmerica_20$Mean_Vehicles<10376&race_pain_NorthAmerica_20$Mean_Vehicles>6490, "2", "3"))))
+
+
+summary(All_pain_US_3$Mean_Cost)
+All_pain_US_3$Mean_Cost_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Cost < 20.38, "0",
+                                                         ifelse(All_pain_US_3$Mean_Cost<22.65&All_pain_US_3$Mean_Cost>20.37, "1", 
+                                                                ifelse(All_pain_US_3$Mean_Cost<23.99&All_pain_US_3$Mean_Cost>22.64, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_Cost)
+race_pain_NorthAmerica_20$Mean_Cost_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Cost < 20.38, "0",
+                                                     ifelse(race_pain_NorthAmerica_20$Mean_Cost<22.65&race_pain_NorthAmerica_20$Mean_Cost>20.37, "1", 
+                                                            ifelse(race_pain_NorthAmerica_20$Mean_Cost<23.99&race_pain_NorthAmerica_20$Mean_Cost>22.64, "2", "3"))))
+
+summary(All_pain_US_3$Mean_Black_highschool)
+All_pain_US_3$Mean_Black_highschool_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Black_highschool < 85.87, "0",
+                                                     ifelse(All_pain_US_3$Mean_Black_highschool<86.71&All_pain_US_3$Mean_Black_highschool>85.86, "1", 
+                                                            ifelse(All_pain_US_3$Mean_Black_highschool<89.11&All_pain_US_3$Mean_Black_highschool>86.70, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_Black_highschool)
+race_pain_NorthAmerica_20$Mean_Black_highschool_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Black_highschool < 85.72, "0",
+                                                                 ifelse(race_pain_NorthAmerica_20$Mean_Black_highschool<86.71&race_pain_NorthAmerica_20$Mean_Black_highschool>85.71, "1", 
+                                                                        ifelse(race_pain_NorthAmerica_20$Mean_Black_highschool<88.6&race_pain_NorthAmerica_20$Mean_Black_highschool>86.70, "2", "3"))))
+
+summary(All_pain_US_3$Mean_Black_bachelor)
+All_pain_US_3$Mean_Black_bachelor_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Black_bachelor < 20.87, "0",
+                                                                 ifelse(All_pain_US_3$Mean_Black_bachelor<22.97&All_pain_US_3$Mean_Black_bachelor>20.86, "1", 
+                                                                        ifelse(All_pain_US_3$Mean_Black_bachelor<25.11&All_pain_US_3$Mean_Black_bachelor>22.96, "2", "3"))))
+
+summary(race_pain_NorthAmerica_20$Mean_Black_bachelor)
+race_pain_NorthAmerica_20$Mean_Black_bachelor_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Black_bachelor < 20.74, "0",
+                                                               ifelse(race_pain_NorthAmerica_20$Mean_Black_bachelor<22.81&race_pain_NorthAmerica_20$Mean_Black_bachelor>20.73, "1", 
+                                                                      ifelse(race_pain_NorthAmerica_20$Mean_Black_bachelor<25.11&race_pain_NorthAmerica_20$Mean_Black_bachelor>22.80, "2", "3"))))
+
+summary(All_pain_US_3$Mean_Computer)
+All_pain_US_3$Mean_Computer_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Computer < 91.04, "0",
+                                                               ifelse(All_pain_US_3$Mean_Computer<91.99&All_pain_US_3$Mean_Computer>91.03, "1", 
+                                                                      ifelse(All_pain_US_3$Mean_Computer<93.21&All_pain_US_3$Mean_Computer>91.98, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_Computer)
+race_pain_NorthAmerica_20$Mean_Computer_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Computer < 91.04, "0",
+                                                         ifelse(race_pain_NorthAmerica_20$Mean_Computer<91.85&race_pain_NorthAmerica_20$Mean_Computer>91.03, "1", 
+                                                                ifelse(race_pain_NorthAmerica_20$Mean_Computer<92.82&race_pain_NorthAmerica_20$Mean_Computer>91.84, "2", "3"))))
+
+summary(All_pain_US_3$Mean_Internet)
+All_pain_US_3$Mean_Internet_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Internet < 84.72, "0",
+                                                         ifelse(All_pain_US_3$Mean_Internet<85.54&All_pain_US_3$Mean_Internet>84.71, "1", 
+                                                                ifelse(All_pain_US_3$Mean_Internet<88.12&All_pain_US_3$Mean_Internet>85.53, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_Internet)
+race_pain_NorthAmerica_20$Mean_Internet_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Internet < 84.72, "0",
+                                                         ifelse(race_pain_NorthAmerica_20$Mean_Internet<85.54&race_pain_NorthAmerica_20$Mean_Internet>84.71, "1", 
+                                                                ifelse(race_pain_NorthAmerica_20$Mean_Internet<87.33&race_pain_NorthAmerica_20$Mean_Internet>85.53, "2", "3"))))
+summary(All_pain_US_3$Mean_insurance)
+All_pain_US_3$Mean_insurance_quartile <- as.factor(ifelse(All_pain_US_3$Mean_insurance < 89.96, "0",
+                                                         ifelse(All_pain_US_3$Mean_insurance<92.31&All_pain_US_3$Mean_insurance>89.95, "1", 
+                                                                ifelse(All_pain_US_3$Mean_insurance<94.21&All_pain_US_3$Mean_insurance>92.3, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_insurance)
+race_pain_NorthAmerica_20$Mean_insurance_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_insurance < 89.80, "0",
+                                                          ifelse(race_pain_NorthAmerica_20$Mean_insurance<92.19&race_pain_NorthAmerica_20$Mean_insurance>89.79, "1", 
+                                                                 ifelse(race_pain_NorthAmerica_20$Mean_insurance<94.11&race_pain_NorthAmerica_20$Mean_insurance>92.18, "2", "3"))))
+
+summary(All_pain_US_3$Median_Black_Income)
+All_pain_US_3$Median_Black_Income_quartile <- as.factor(ifelse(All_pain_US_3$Median_Black_Income < 38574, "0",
+                                                          ifelse(All_pain_US_3$Median_Black_Income<43261&All_pain_US_3$Median_Black_Income>38573, "1", 
+                                                                 ifelse(All_pain_US_3$Median_Black_Income<49001&All_pain_US_3$Median_Black_Income>43260, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Median_Black_Income)
+race_pain_NorthAmerica_20$Median_Black_Income_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Median_Black_Income < 38574, "0",
+                                                               ifelse(race_pain_NorthAmerica_20$Median_Black_Income<43241&race_pain_NorthAmerica_20$Median_Black_Income>38573, "1", 
+                                                                      ifelse(race_pain_NorthAmerica_20$Median_Black_Income<48558&race_pain_NorthAmerica_20$Median_Black_Income>43240, "2", "3"))))
+
+summary(All_pain_US_3$Mean_body_count)
+All_pain_US_3$Mean_body_count_quartile <- as.factor(ifelse(All_pain_US_3$Mean_body_count < 145, "0",
+                                                               ifelse(All_pain_US_3$Mean_body_count<293&All_pain_US_3$Mean_body_count>144, "1", 
+                                                                      ifelse(All_pain_US_3$Mean_body_count<499&All_pain_US_3$Mean_body_count>292, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_body_count)
+race_pain_NorthAmerica_20$Mean_body_count_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_body_count < 211.5, "0",
+                                                           ifelse(race_pain_NorthAmerica_20$Mean_body_count<293&race_pain_NorthAmerica_20$Mean_body_count>211.4, "1", 
+                                                                  ifelse(race_pain_NorthAmerica_20$Mean_body_count<411.9&race_pain_NorthAmerica_20$Mean_body_count>292, "2", "3"))))
+
+summary(All_pain_US_3$Mean_weeks_unemployed_black_2)
+All_pain_US_3$Mean_weeks_unemployed_black_2_quartile <- as.factor(ifelse(All_pain_US_3$Mean_weeks_unemployed_black_2 < 20.91, "0",
+                                                           ifelse(All_pain_US_3$Mean_weeks_unemployed_black_2<23.84&All_pain_US_3$Mean_weeks_unemployed_black_2>20.9, "1", 
+                                                                  ifelse(All_pain_US_3$Mean_weeks_unemployed_black_2<26.51&All_pain_US_3$Mean_weeks_unemployed_black_2>23.83, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_weeks_unemployed_black_2)
+race_pain_NorthAmerica_20$Mean_weeks_unemployed_black_2_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_weeks_unemployed_black_2 < 21.12, "0",
+                                                                         ifelse(race_pain_NorthAmerica_20$Mean_weeks_unemployed_black_2<23.93&race_pain_NorthAmerica_20$Mean_weeks_unemployed_black_2>21.11, "1", 
+                                                                                ifelse(race_pain_NorthAmerica_20$Mean_weeks_unemployed_black_2<26.44&race_pain_NorthAmerica_20$Mean_weeks_unemployed_black_2>23.92, "2", "3"))))
+summary(All_pain_US_3$Mean_housing_units)
+All_pain_US_3$Mean_housing_units_quartile <- as.factor(ifelse(All_pain_US_3$Mean_housing_units < 2928733, "0",
+                                                                         ifelse(All_pain_US_3$Mean_housing_units<5388067&All_pain_US_3$Mean_housing_units>2928732, "1", 
+                                                                                ifelse(All_pain_US_3$Mean_housing_units<8404382&All_pain_US_3$Mean_housing_units>5388066, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_housing_units)
+race_pain_NorthAmerica_20$Mean_housing_units_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_housing_units < 2928733, "0",
+                                                              ifelse(race_pain_NorthAmerica_20$Mean_housing_units<5232870&race_pain_NorthAmerica_20$Mean_housing_units>2928732, "1", 
+                                                                     ifelse(race_pain_NorthAmerica_20$Mean_housing_units<8404382&race_pain_NorthAmerica_20$Mean_housing_units>5232869, "2", "3"))))
+summary(All_pain_US_3$Mean_homeowner_rates)
+All_pain_US_3$Mean_homeowner_rates_quartile <- as.factor(ifelse(All_pain_US_3$Mean_homeowner_rates < 62.02, "0",
+                                                              ifelse(All_pain_US_3$Mean_homeowner_rates<65.06&All_pain_US_3$Mean_homeowner_rates>62.01, "1", 
+                                                                     ifelse(All_pain_US_3$Mean_homeowner_rates<68.4&All_pain_US_3$Mean_homeowner_rates>65.05, "2", "3"))))
+
+summary(race_pain_NorthAmerica_20$Mean_homeowner_rates)
+race_pain_NorthAmerica_20$Mean_homeowner_rates_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_homeowner_rates < 62.43, "0",
+                                                                ifelse(race_pain_NorthAmerica_20$Mean_homeowner_rates<65.06&race_pain_NorthAmerica_20$Mean_homeowner_rates>62.42, "1", 
+                                                                       ifelse(race_pain_NorthAmerica_20$Mean_homeowner_rates<68.18&race_pain_NorthAmerica_20$Mean_homeowner_rates>65.05, "2", "3"))))
+summary(All_pain_US_3$Mean_poverty_rates)
+All_pain_US_3$Mean_poverty_rates_quartile <- as.factor(ifelse(All_pain_US_3$Mean_poverty_rates < 10.61, "0",
+                                                                ifelse(All_pain_US_3$Mean_poverty_rates<11.81&All_pain_US_3$Mean_poverty_rates>10.6, "1", 
+                                                                       ifelse(All_pain_US_3$Mean_poverty_rates<12.81&All_pain_US_3$Mean_poverty_rates>11.8, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_poverty_rates)
+race_pain_NorthAmerica_20$Mean_poverty_rates_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_poverty_rates < 10.71, "0",
+                                                              ifelse(race_pain_NorthAmerica_20$Mean_poverty_rates<11.81&race_pain_NorthAmerica_20$Mean_poverty_rates>10.7, "1", 
+                                                                     ifelse(race_pain_NorthAmerica_20$Mean_poverty_rates<12.86&race_pain_NorthAmerica_20$Mean_poverty_rates>11.8, "2", "3"))))
+summary(All_pain_US_3$Mean_Religious)
+All_pain_US_3$Mean_Religious_quartile <- as.factor(ifelse(All_pain_US_3$Mean_Religious  < 0.5, "0",
+                                                              ifelse(All_pain_US_3$Mean_Religious <0.54&All_pain_US_3$Mean_Religious >0.49, "1", 
+                                                                     ifelse(All_pain_US_3$Mean_Religious <0.5899&All_pain_US_3$Mean_Religious >0.53, "2", "3"))))
+summary(race_pain_NorthAmerica_20$Mean_Religious)
+race_pain_NorthAmerica_20$Mean_Religious_quartile <- as.factor(ifelse(race_pain_NorthAmerica_20$Mean_Religious  < 0.5, "0",
+                                                          ifelse(race_pain_NorthAmerica_20$Mean_Religious <0.55&race_pain_NorthAmerica_20$Mean_Religious >0.49, "1", 
+                                                                 ifelse(race_pain_NorthAmerica_20$Mean_Religious <0.5951&race_pain_NorthAmerica_20$Mean_Religious >0.54, "2", "3"))))
+
+
+
+### All pain clinical trials with time 
+Pain_time <- select(All_pain_US_3, "nct_id", "start_year")
+Pain_States_Time <- merge(Pain_States, Pain_time, by="nct_id")
+Pain_States_Time$start_year <- substr(Pain_States_Time$start_year, 1, 4)
+
+### Updated Computer files with both states and time 
+Computer_Overtime <- read_excel("~/AK/Race/Data/Computer and Internet Use/Computer_Overtime.xlsx")
+Computer_Overtime_long <- gather(Computer_Overtime, start_year, Computer, '2000':'2019', factor_key = TRUE)
+
+Pain_Computer_State_Overtime <- merge(Pain_States_Time, Computer_Overtime_long, by=c("state", "start_year"))
+Pain_Computer_State_Overtime <- aggregate(.~nct_id, Pain_Computer_State_Overtime, paste, collapse=",")
+
+Pain_Computer_State_Overtime$Mean_Computer_Overtime <- sapply(strsplit(Pain_Computer_State_Overtime$Computer, ','), function(x) mean(as.numeric(x)))
+Pain_Computer_State_Overtime <- select(Pain_Computer_State_Overtime, "nct_id", "Mean_Computer_Overtime")
+
+### Updated Internet files with both states and time
+Internet_Overtime <- read_excel("~/AK/Race/Data/Computer and Internet Use/Internet_Overtime.xlsx")
+Internet_Overtime_long <- gather(Internet_Overtime, start_year, Internet, '2000':'2019', factor_key = TRUE)
+
+Pain_Internet_State_Overtime <- merge(Pain_States_Time, Internet_Overtime_long, by=c("state", "start_year"))
+Pain_Internet_State_Overtime <- aggregate(.~nct_id, Pain_Internet_State_Overtime, paste, collapse=",")
+
+Pain_Internet_State_Overtime$Mean_Internet_Overtime <- sapply(strsplit(Pain_Internet_State_Overtime$Internet, ','), function(x) mean(as.numeric(x)))
+Pain_Internet_State_Overtime <- select(Pain_Internet_State_Overtime, "nct_id", "Mean_Internet_Overtime")
+
+### Updated Highschool files with both states and time 
+Highschool_Overtime <- read_excel("~/AK/Race/Data/Education/Highschool_Overtime.xlsx")
+Highschool_Overtime_long <- gather(Highschool_Overtime, start_year, Highschool, '2000':'2019', factor_key = TRUE)
+
+Pain_Highschool_State_Overtime <- merge(Pain_States_Time, Highschool_Overtime_long, by=c("state", "start_year"))
+Pain_Highschool_State_Overtime <- aggregate(.~nct_id, Pain_Highschool_State_Overtime, paste, collapse=",")
+
+Pain_Highschool_State_Overtime$Mean_Highschool_Overtime <- sapply(strsplit(Pain_Highschool_State_Overtime$Highschool, ','), function(x) mean(as.numeric(x)))
+Pain_Highschool_State_Overtime <- select(Pain_Highschool_State_Overtime, "nct_id", "Mean_Highschool_Overtime")
+
+### Updated Bachelor files with both states and time 
+Bachelor_Overtime <- read_excel("~/AK/Race/Data/Education/Bachelor_Overtime.xlsx")
+Bachelor_Overtime_long <- gather(Bachelor_Overtime, start_year, Bachelor, '2000':'2019', factor_key = TRUE)
+
+Pain_Bachelor_State_Overtime <- merge(Pain_States_Time, Bachelor_Overtime_long, by=c("state", "start_year"))
+Pain_Bachelor_State_Overtime <- aggregate(.~nct_id, Pain_Bachelor_State_Overtime, paste, collapse=",")
+
+Pain_Bachelor_State_Overtime$Mean_Bachelor_Overtime <- sapply(strsplit(Pain_Bachelor_State_Overtime$Bachelor, ','), function(x) mean(as.numeric(x)))
+Pain_Bachelor_State_Overtime <- select(Pain_Bachelor_State_Overtime, "nct_id", "Mean_Bachelor_Overtime")
+
+### Updated Employment files with both states and time 
+Employment_Overtime <- read_excel("~/AK/Race/Data/Employment and Unemployment Time/Employment_Overtime.xlsx")
+Employment_Overtime_long <- gather(Employment_Overtime, start_year, Employment, '2000':'2019', factor_key = TRUE)
+
+Pain_Employment_State_Overtime <- merge(Pain_States_Time, Employment_Overtime_long, by=c("state", "start_year"))
+Pain_Employment_State_Overtime <- aggregate(.~nct_id, Pain_Employment_State_Overtime, paste, collapse=",")
+
+Pain_Employment_State_Overtime$Mean_Employment_Overtime <- sapply(strsplit(Pain_Employment_State_Overtime$Employment, ','), function(x) mean(as.numeric(x)))
+Pain_Employment_State_Overtime <- select(Pain_Employment_State_Overtime, "nct_id", "Mean_Employment_Overtime")
+
+### Updated Homeownership files with both states and time
+Homeownership_Overtime <- read_excel("~/AK/Race/Data/Homeownership/Homeownership_Overtime.xlsx")
+Homeownership_Overtime_long <- gather(Homeownership_Overtime, start_year, Homeownership, '2000':'2019', factor_key = TRUE)
+
+Pain_Homeownership_State_Overtime <- merge(Pain_States_Time, Homeownership_Overtime_long, by=c("state", "start_year"))
+Pain_Homeownership_State_Overtime <- aggregate(.~nct_id, Pain_Homeownership_State_Overtime, paste, collapse=",")
+
+Pain_Homeownership_State_Overtime$Mean_Homeownership_Overtime <- sapply(strsplit(Pain_Homeownership_State_Overtime$Homeownership, ','), function(x) mean(as.numeric(x)))
+Pain_Homeownership_State_Overtime <- select(Pain_Homeownership_State_Overtime, "nct_id", "Mean_Homeownership_Overtime")
+
+### Updated Housing files with both states and time 
+Housing_Overtime <- read_excel("~/AK/Race/Data/Housing/Housing_Overtime.xlsx")
+Housing_Overtime_long <- gather(Housing_Overtime, start_year, Housing, '2000':'2019', factor_key = TRUE)
+
+Pain_Housing_State_Overtime <- merge(Pain_States_Time, Housing_Overtime_long, by=c("state", "start_year"))
+Pain_Housing_State_Overtime <- aggregate(.~nct_id, Pain_Housing_State_Overtime, paste, collapse=",")
+
+Pain_Housing_State_Overtime$Mean_Housing_Overtime <- sapply(strsplit(Pain_Housing_State_Overtime$Housing, ','), function(x) mean(as.numeric(x)))
+Pain_Housing_State_Overtime <- select(Pain_Housing_State_Overtime, "nct_id", "Mean_Housing_Overtime")
+
+### Updated Insurance files with both states and time (file 1 is long, file 2 is wide)
+Insurance_Overtime_2 <- read_excel("~/AK/Race/Data/Insurance Time/Insurance_Overtime_2.xlsx")
+Insurance_Overtime_2_long <- gather(Insurance_Overtime_2, start_year, Insurance, '2013':'2019', factor_key = TRUE)
+
+Insurance_Overtime_1 <- read_excel("~/AK/Race/Data/Insurance Time/Insurance_Overtime_1.xlsx")
+Insurance_Overtime <- rbind(Insurance_Overtime_1, Insurance_Overtime_2_long)
+
+Pain_Insurance_State_Overtime <- merge(Pain_States_Time, Insurance_Overtime, by=c("state", "start_year"))
+Pain_Insurance_State_Overtime <- aggregate(.~nct_id, Pain_Insurance_State_Overtime, paste, collapse=",")
+
+Pain_Insurance_State_Overtime$Mean_Insurance_Overtime <- sapply(strsplit(Pain_Insurance_State_Overtime$Insurance, ','), function(x) mean(as.numeric(x)))
+Pain_Insurance_State_Overtime <- select(Pain_Insurance_State_Overtime, "nct_id", "Mean_Insurance_Overtime")
+
+### Updated Income files with both states and time
+MedianIncome_Overtime <- read_excel("~/AK/Race/Data/Median Income Time/MedianIncome_Overtime.xlsx")
+MedianIncome_Overtime_long <- gather(MedianIncome_Overtime, start_year, MedianIncome, '2000':'2019', factor_key = TRUE)
+
+Pain_MedianIncome_State_Overtime <- merge(Pain_States_Time, MedianIncome_Overtime_long, by=c("state", "start_year"))
+Pain_MedianIncome_State_Overtime <- aggregate(.~nct_id, Pain_MedianIncome_State_Overtime, paste, collapse=",")
+
+Pain_MedianIncome_State_Overtime$Mean_MedianIncome_Overtime <- sapply(strsplit(Pain_MedianIncome_State_Overtime$MedianIncome, ','), function(x) mean(as.numeric(x)))
+Pain_MedianIncome_State_Overtime <- select(Pain_MedianIncome_State_Overtime, "nct_id", "Mean_MedianIncome_Overtime")
+
+### Updated Police files with both states and time
+### copying from above
+Police_States_2 <- read_excel("Police_data.xlsx")
+Police_States <- merge(Police_States_2, States, by.x = "State", by.y="state")
+Police_States <- subset(Police_States, Race=="African-American/Black")
+Police_States$start_year <- format(as.Date(Police_States$Date, format="%d/%m/%Y"),"%Y")
+Police_States <- subset(Police_States, start_year!= "2020" & start_year!= "2021")
+
+Police_States<- Police_States %>% group_by_at(vars(c(region, start_year))) %>%
+  summarize_all(paste, collapse=",")
+
+Police_States$body_count <- sapply(strsplit(Police_States$Unique_ID, ","), length)
+Police_2 <- select(Police_States, "region", "start_year", "body_count")
+colnames(Police_2)[colnames(Police_2) == "region"] <- "state"
+
+Pain_Police_State_Overtime <- merge(Pain_States_Time, Police_2, by=c("state", "start_year"))
+Pain_Police_State_Overtime <- aggregate(.~nct_id, Pain_Police_State_Overtime, paste, collapse=",")
+
+Pain_Police_State_Overtime$Mean_body_Overtime <- sapply(strsplit(Pain_Police_State_Overtime$body_count, ','), function(x) mean(as.numeric(x)))
+Pain_Police_State_Overtime <- select(Pain_Police_State_Overtime, "nct_id", "Mean_body_Overtime")
+
+### Updated Population files with both states and time 
+Population_Overtime <- read_excel("~/AK/Race/Data/Population/Population_Overtime.xlsx")
+Population_Overtime_long <- gather(Population_Overtime, start_year, Population, '2000':'2019', factor_key = TRUE)
+
+Pain_Population_State_Overtime <- merge(Pain_States_Time, Population_Overtime_long, by=c("state", "start_year"))
+Pain_Population_State_Overtime <- aggregate(.~nct_id, Pain_Population_State_Overtime, paste, collapse=",")
+
+Pain_Population_State_Overtime$Mean_Population_Overtime <- sapply(strsplit(Pain_Population_State_Overtime$Population, ','), function(x) mean(as.numeric(x)))
+Pain_Population_State_Overtime <- select(Pain_Population_State_Overtime, "nct_id", "Mean_Population_Overtime")
+
+### Updated Poverty files with both states and time
+Poverty_Overtime <- read_excel("~/AK/Race/Data/Poverty/Poverty_Overtime.xlsx")
+Poverty_Overtime_long <- gather(Poverty_Overtime, start_year, Poverty , '2000':'2019', factor_key = TRUE)
+
+Pain_Poverty_State_Overtime <- merge(Pain_States_Time, Poverty_Overtime_long, by=c("state", "start_year"))
+Pain_Poverty_State_Overtime <- aggregate(.~nct_id, Pain_Poverty_State_Overtime, paste, collapse=",")
+
+Pain_Poverty_State_Overtime$Mean_Poverty_Overtime <- sapply(strsplit(Pain_Poverty_State_Overtime$Poverty , ','), function(x) mean(as.numeric(x)))
+Pain_Poverty_State_Overtime <- select(Pain_Poverty_State_Overtime, "nct_id", "Mean_Poverty_Overtime")
+
+### Updated Transportation files with both states and time
+Transport_Overtime <- read_excel("~/AK/Race/Data/Transportation/Transport_Overtime.xlsx")
+Transport_Overtime_long <- gather(Transport_Overtime, start_year, Transport , '2000':'2019', factor_key = TRUE)
+
+Pain_Transport_State_Overtime <- merge(Pain_States_Time, Transport_Overtime_long, by=c("state", "start_year"))
+Pain_Transport_State_Overtime <- aggregate(.~nct_id, Pain_Transport_State_Overtime, paste, collapse=",")
+
+Pain_Transport_State_Overtime$Mean_Transport_Overtime <- sapply(strsplit(Pain_Transport_State_Overtime$Transport , ','), function(x) mean(as.numeric(x)))
+Pain_Transport_State_Overtime <- select(Pain_Transport_State_Overtime, "nct_id", "Mean_Transport_Overtime")
+
+### Merge all of those updated files 
+Updated_variables <- Reduce(inner_join, list(Pain_Computer_State_Overtime, Pain_Internet_State_Overtime, Pain_Highschool_State_Overtime,
+                                             Pain_Bachelor_State_Overtime, Pain_Employment_State_Overtime, Pain_Homeownership_State_Overtime,
+                                             Pain_Housing_State_Overtime, Pain_Insurance_State_Overtime, Pain_MedianIncome_State_Overtime,
+                                             Pain_Police_State_Overtime, Pain_Population_State_Overtime, Pain_Poverty_State_Overtime, 
+                                             Pain_Transport_State_Overtime))
+
+Updated_variables$Mean_Computer_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Computer_Overtime < 81.79, "0",
+                                                                      ifelse(Updated_variables$Mean_Computer_Overtime <86.18& Updated_variables$Mean_Computer_Overtime>81.78, "1", 
+                                                                             ifelse(Updated_variables$Mean_Computer_Overtime<89.26&Updated_variables$Mean_Computer_Overtime>86.17, "2", "3"))))
+
+Updated_variables$Mean_Internet_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Internet_Overtime < 69.01, "0",
+                                                                      ifelse(Updated_variables$Mean_Internet_Overtime <75.41& Updated_variables$Mean_Internet_Overtime>69, "1", 
+                                                                             ifelse(Updated_variables$Mean_Internet_Overtime<80.12&Updated_variables$Mean_Internet_Overtime>75.4, "2", "3"))))
+
+Updated_variables$Mean_Highschool_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Highschool_Overtime < 84.01, "0",
+                                                                      ifelse(Updated_variables$Mean_Highschool_Overtime <85.67& Updated_variables$Mean_Highschool_Overtime>84, "1", 
+                                                                             ifelse(Updated_variables$Mean_Highschool_Overtime<88.51&Updated_variables$Mean_Highschool_Overtime>85.66, "2", "3"))))
+
+
+Updated_variables$Mean_Bachelor_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Bachelor_Overtime < 17.73, "0",
+                                                                        ifelse(Updated_variables$Mean_Bachelor_Overtime <19.43& Updated_variables$Mean_Bachelor_Overtime>17.72, "1", 
+                                                                               ifelse(Updated_variables$Mean_Bachelor_Overtime<23.04&Updated_variables$Mean_Bachelor_Overtime>19.42, "2", "3"))))
+
+Updated_variables$Mean_Employment_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Employment_Overtime < 52.01, "0",
+                                                                      ifelse(Updated_variables$Mean_Employment_Overtime <55.31& Updated_variables$Mean_Employment_Overtime>52, "1", 
+                                                                             ifelse(Updated_variables$Mean_Employment_Overtime<58.87&Updated_variables$Mean_Employment_Overtime>55.3, "2", "3"))))
+
+Updated_variables$Mean_Homeownership_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Homeownership_Overtime < 62.24, "0",
+                                                                      ifelse(Updated_variables$Mean_Homeownership_Overtime <66.45& Updated_variables$Mean_Homeownership_Overtime>62.23, "1", 
+                                                                             ifelse(Updated_variables$Mean_Homeownership_Overtime<69.59&Updated_variables$Mean_Homeownership_Overtime>66.44, "2", "3"))))
+
+Updated_variables$Mean_Housing_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Housing_Overtime < 2359194, "0",
+                                                                      ifelse(Updated_variables$Mean_Housing_Overtime <4472160& Updated_variables$Mean_Housing_Overtime>2359193, "1", 
+                                                                             ifelse(Updated_variables$Mean_Housing_Overtime<7253418&Updated_variables$Mean_Housing_Overtime>4472159, "2", "3"))))
+
+Updated_variables$Mean_Insurance_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Insurance_Overtime < 83.8, "0",
+                                                                      ifelse(Updated_variables$Mean_Insurance_Overtime <87.55& Updated_variables$Mean_Insurance_Overtime>83.79, "1", 
+                                                                             ifelse(Updated_variables$Mean_Insurance_Overtime<91.1&Updated_variables$Mean_Insurance_Overtime>87.54, "2", "3"))))
+
+Updated_variables$Mean_MedianIncome_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_MedianIncome_Overtime < 48456, "0",
+                                                                      ifelse(Updated_variables$Mean_MedianIncome_Overtime <52520& Updated_variables$Mean_MedianIncome_Overtime>48455, "1", 
+                                                                             ifelse(Updated_variables$Mean_MedianIncome_Overtime<59330&Updated_variables$Mean_MedianIncome_Overtime>52519, "2", "3"))))
+
+Updated_variables$Mean_body_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_body_Overtime < 7.01, "0",
+                                                                      ifelse(Updated_variables$Mean_body_Overtime <16.53& Updated_variables$Mean_body_Overtime>7, "1", 
+                                                                             ifelse(Updated_variables$Mean_body_Overtime<25.01&Updated_variables$Mean_body_Overtime>16.52, "2", "3"))))
+
+Updated_variables$Mean_Population_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Population_Overtime < 842061, "0",
+                                                                      ifelse(Updated_variables$Mean_Population_Overtime <1653989& Updated_variables$Mean_Population_Overtime>842060, "1", 
+                                                                             ifelse(Updated_variables$Mean_Population_Overtime<2154357&Updated_variables$Mean_Population_Overtime>1653988, "2", "3"))))
+
+Updated_variables$Mean_Poverty_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Poverty_Overtime < 11.65, "0",
+                                                                      ifelse(Updated_variables$Mean_Poverty_Overtime <13.73& Updated_variables$Mean_Poverty_Overtime>11.64, "1", 
+                                                                             ifelse(Updated_variables$Mean_Poverty_Overtime<15.31&Updated_variables$Mean_Poverty_Overtime>13.72, "2", "3"))))
+
+Updated_variables$Mean_Transport_Overtime_quartile <- as.factor(ifelse(Updated_variables$Mean_Transport_Overtime < 7.019, "0",
+                                                                      ifelse(Updated_variables$Mean_Transport_Overtime <9.171& Updated_variables$Mean_Transport_Overtime>7.018, "1", 
+                                                                             ifelse(Updated_variables$Mean_Transport_Overtime<10.834&Updated_variables$Mean_Transport_Overtime>9.17, "2", "3"))))
+
+
+
+### Merge with pain files 
+race_pain_NorthAmerica_21 <- left_join(race_pain_NorthAmerica_20, Updated_variables, by="nct_id")
+
+### Merge with All pain files 
+
+All_pain_US_4 <- left_join(All_pain_US_3, Updated_variables, by="nct_id")
+
+### updated elderly 
+
+race_pain_NorthAmerica_21$elderly_2 <- as.factor(ifelse(is.na(race_pain_NorthAmerica_21$special_population), "non-elderly",
+                                                       ifelse(race_pain_NorthAmerica_21$special_population == "elderly", "elderly", "non-elderly")))
+
+race_pain_NorthAmerica_21$acute_2 <- relevel(race_pain_NorthAmerica_21$acute_2, ref = "non-acute")
+race_pain_NorthAmerica_21$chronic_2 <- relevel(race_pain_NorthAmerica_21$chronic_2, ref = "non-chronic")
+race_pain_NorthAmerica_21$cancer_2 <- relevel(race_pain_NorthAmerica_21$cancer_2, ref = "non-cancer")
+race_pain_NorthAmerica_21$kids_2 <- relevel(race_pain_NorthAmerica_21$kids_2, ref = "non-kids")
+race_pain_NorthAmerica_21$female_2 <- relevel(race_pain_NorthAmerica_21$female_2, ref = "non-female")
+race_pain_NorthAmerica_21$veterans_2 <- relevel(race_pain_NorthAmerica_21$veterans_2, ref = "non-veterans")
+race_pain_NorthAmerica_21$elderly_2 <- relevel(race_pain_NorthAmerica_21$elderly_2, ref = "non-elderly")
+
+### Maybe change Black percent into binary factor?
+race_pain_NorthAmerica_21$Black_percent_binary <- as.factor(ifelse(race_pain_NorthAmerica_21$Black_percent_2 < "12.16", "0", "1"))
+
+race_pain_NorthAmerica_21 %>% group_by(diverse_index) %>% summarise(n=n(),Total_N=sum(N_total, na.rm=TRUE), Black_N=sum(Black_N))
+
+whatev <- race_pain_NorthAmerica_21 %>% select(diverse_index, Black_N)
+tbl_summary(whatev)
+
+
+#### Update Black population per state with percentages 
+Total_Population_Overtime <- read_excel("~/AK/Race/Data/Population/Total_Population_Overtime.xlsx")
+Total_Population_Overtime_long <- gather(Total_Population_Overtime, start_year, Population, '2000':'2019', factor_key = TRUE)
+Total_Population_Overtime_long <- merge(Population_Overtime_long, Total_Population_Overtime_long, by = c("state", "start_year")) 
+Total_Population_Overtime_long$Black_percent_Population  <- (Total_Population_Overtime_long$Population.x/Total_Population_Overtime_long$Population.y)*100
+
+Pain_Total_Population_State_Overtime <- merge(Pain_States_Time, Total_Population_Overtime_long, by=c("state", "start_year"))
+Pain_Total_Population_State_Overtime <- aggregate(.~nct_id, Pain_Total_Population_State_Overtime, paste, collapse=",")
+
+Pain_Total_Population_State_Overtime$Mean_Black_Percent_Population_Overtime <- sapply(strsplit(Pain_Total_Population_State_Overtime$Black_percent_Population, ','), function(x) mean(as.numeric(x)))
+Pain_Total_Population_State_Overtime$Mean_Black_Percent_Population_Overtime_quartile <- as.factor(ifelse(Pain_Total_Population_State_Overtime$Mean_Black_Percent_Population_Overtime < 6.115, "0",
+                                                                        ifelse(Pain_Total_Population_State_Overtime$Mean_Black_Percent_Population_Overtime <11.572& Pain_Total_Population_State_Overtime$Mean_Black_Percent_Population_Overtime>6.114, "1", 
+                                                                               ifelse(Pain_Total_Population_State_Overtime$Mean_Black_Percent_Population_Overtime<14.41&Pain_Total_Population_State_Overtime$Mean_Black_Percent_Population_Overtime>11.571, "2", "3"))))
+
+
+
+Pain_Total_Population_State_Overtime <- dplyr::select(Pain_Total_Population_State_Overtime, "nct_id", "Mean_Black_Percent_Population_Overtime", "Mean_Black_Percent_Population_Overtime_quartile")
+
+race_pain_NorthAmerica_22 <- left_join(race_pain_NorthAmerica_21, Pain_Total_Population_State_Overtime, by="nct_id")
+
+race_pain_NorthAmerica_22$special_population_2 <- ifelse(is.na(race_pain_NorthAmerica_22$special_population)|race_pain_NorthAmerica_22$special_population =="healthy", 
+                             "general", race_pain_NorthAmerica_22$special_population)
+race_pain_NorthAmerica_22$special_population_2<- relevel(factor(race_pain_NorthAmerica_22$special_population_2), ref = "general")
+
+
+
+### What exactly is studying in women-only trials?
+women_only <- subset(race_pain_NorthAmerica_22, special_population_2=="female")
+women_only <- dplyr::select(women_only, "nct_id", "pain_type", "special_population")
+write_xlsx(women_only, "women_only.xlsx")
+
+women_only_2<- read_excel("women_only.xlsx")
+women_only_2 %>% group_by(study) %>% summarize(percent=(n()/72)*100, Black=(Black_N/N_total)*100)
+
+Black_N <- dplyr::select(race_pain_NorthAmerica_22, "nct_id","Black_N", "N_total")
+women_only_3 <- left_join(women_only_2, Black_N, by="nct_id")
+women_only_3 %>% group_by(study) %>% summarize(trials=n(),percent_trials=(n()/72)*100, Black=sum(Black_N), Total=sum(N_total), percent_Black=Black/Total)
+
+
+opioids_factors <-race_pain_NorthAmerica_22 %>% group_by(opioids, pain_type) %>% summarize(percent_trials=n(), Black=sum(Black_N), Total=sum(N_total), percent_Black=Black/Total)
+
+
+### Extract files to upload 
+write.csv(All_pain_US_4, "All_pain_master_file.csv")
+write.csv(race_pain_NorthAmerica_22, "Pain_w_Black.csv")
