@@ -1,3 +1,6 @@
+library(gtsummary)
+library(dplyr)
+
 #### Logistic Regression for Race Reporting 
 uni_glm_quartile <- tbl_uvregression(
   All_pain_master_file[c( "N_total_quartile","funding" , "start_year_quartile", "phase_binary" , "diverse_index" , "multiple_locations" , "Nature_2", "reported_race_3")],
