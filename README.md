@@ -7,13 +7,17 @@
 # <a name="team-members"></a>Analysis was done by 
 * "Anh Khoa Vo" <anhkhoa.vo@email.kpu.ca>
 
+# <a name="team-members"></a>Original Datasets 
 The datasets were taken from https://aact.ctti-clinicaltrials.org/connect
 
-
+# <a name="team-members"></a>Updated Datasets 
 The Overall File can be found [here](https://github.com/AnhKhoaVo/Race_in_Pain_Clinical_Trials/blob/master/All_pain_master_file.csv)
 
 The File that only reported Black participation can be found [here](https://github.com/AnhKhoaVo/Race_in_Pain_Clinical_Trials/blob/master/Pain_w_Black.csv)
 
+The subjective determination of PI's race can be found here [here](https://github.com/AnhKhoaVo/Race_in_Pain_Clinical_Trials/blob/master/pain_investigators.xlsx)
+
+# <a name="team-members"></a>The overall analysis
 The overall analysis can found [here](https://github.com/AnhKhoaVo/Race_in_Pain_Clinical_Trials/blob/master/Clean_Analysis.R) 
 
-The subjective determination of PI's race can be found here [here](https://github.com/AnhKhoaVo/Race_in_Pain_Clinical_Trials/blob/master/pain_investigators.xlsx)
+
