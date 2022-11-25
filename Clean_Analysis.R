@@ -38,6 +38,7 @@ tbl_merge(
   tab_spanner = c("**Univariate**", 
                   "**Pain and Internal Characteristics Multivariable**" )) # set header names
 
+### In multi-variable linear regression, the minority was NA due to complete case removal (because they only have 4 trials).
 
 ### Descriptive tables for race reporting 
 
